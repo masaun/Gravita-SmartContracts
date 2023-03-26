@@ -42,7 +42,7 @@ contract("AdminContract", async accounts => {
 	const GRVT_GAS_COMPENSATION_SAFETY_MAX = toBN(dec(400, 18))
 	const GRVT_GAS_COMPENSATION_SAFETY_MIN = toBN(dec(1, 18))
 
-	const MIN_NET_DEBT_SAFETY_MAX = toBN(dec(1800, 18))
+	const MIN_NET_DEBT_SAFETY_MAX = toBN(dec(5000, 18))
 	const MIN_NET_DEBT_SAFETY_MIN = toBN(0)
 
 	const REDEMPTION_FEE_FLOOR_SAFETY_MAX = toBN(1000)
@@ -94,10 +94,10 @@ contract("AdminContract", async accounts => {
 
 			await adminContract.setMCR(ZERO_ADDRESS, "1100000000000000000")
 			await adminContract.setCCR(ZERO_ADDRESS, "1500000000000000000")
-			await adminContract.setPercentDivisor(ZERO_ADDRESS, 100)
+			await adminContract.setPercentDivisor(ZERO_ADDRESS, 200)
 			await adminContract.setBorrowingFee(ZERO_ADDRESS, 50)
-			await adminContract.setDebtTokenGasCompensation(ZERO_ADDRESS, dec(30, 18))
-			await adminContract.setMinNetDebt(ZERO_ADDRESS, dec(300, 18))
+			await adminContract.setDebtTokenGasCompensation(ZERO_ADDRESS, dec(200, 18))
+			await adminContract.setMinNetDebt(ZERO_ADDRESS, dec(2000, 18))
 			await adminContract.setRedemptionFeeFloor(ZERO_ADDRESS, 50)
 			await adminContract.setMintCap(ZERO_ADDRESS, dec(1000000, 18))
 

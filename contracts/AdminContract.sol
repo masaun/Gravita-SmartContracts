@@ -394,7 +394,7 @@ contract AdminContract is IAdminContract, ProxyAdmin {
 		public
 		override
 		longTimelockOnly
-		safeCheck("Min Net Debt", _collateral, minNetDebt, 0, 1800 ether)
+		safeCheck("Min Net Debt", _collateral, minNetDebt, 0, 5000 ether)
 	{
 		uint256 oldMinNet = collateralParams[_collateral].minNetDebt;
 		collateralParams[_collateral].minNetDebt = minNetDebt;
