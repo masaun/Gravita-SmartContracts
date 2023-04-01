@@ -909,12 +909,14 @@ contract StabilityPool is OwnableUpgradeable, ReentrancyGuardUpgradeable, PoolBa
 		for (uint256 i = 0; i < assetsLen; ++i) {
 			address assetAddress = assets[i];
 			address lowestVessel = sortedVessels.getLast(assetAddress);
-			uint256 price = adminContract.priceFeed().fetchPrice(assetAddress);
-			uint256 ICR = vesselManager.getCurrentICR(assetAddress, lowestVessel, price);
-			require(
-				ICR >= adminContract.getMcr(assetAddress),
-				"StabilityPool: Cannot withdraw while there are vessels with ICR < MCR"
-			);
+			if (lowestVessel != address(0)) {
+				uint256 price = adminContract.priceFeed().fetchPrice(assetAddress);
+				uint256 ICR = vesselManager.getCurrentICR(assetAddress, lowestVessel, price);
+				require(
+					ICR >= adminContract.getMcr(assetAddress),
+					"StabilityPool: Cannot withdraw while there are vessels with ICR < MCR"
+				);
+			}
 		}
 	}
 
