@@ -159,7 +159,6 @@ contract StabilityPool is OwnableUpgradeable, ReentrancyGuardUpgradeable, PoolBa
 	IDebtToken public debtToken;
 	ISortedVessels public sortedVessels;
 	ICommunityIssuance public communityIssuance;
-	IAdminContract public controller;
 
 	// Tracker for debtToken held in the pool. Changes when users deposit/withdraw, and when Vessel debt is offset.
 	uint256 internal totalDebtTokenDeposits;
@@ -237,7 +236,30 @@ contract StabilityPool is OwnableUpgradeable, ReentrancyGuardUpgradeable, PoolBa
 	uint256[] public lastAssetError_Offset;
 	uint256 public lastDebtTokenLossError_Offset;
 
-	// --- Contract setters ---
+	// Access Modifiers -------------------------------------------------------------------------------------------------
+
+	modifier onlyAdminContract() {
+		if (msg.sender != address(adminContract)) {
+			revert StabilityPool__AdminContractOnly(msg.sender, address(adminContract));
+		}
+		_;
+	}
+
+	modifier onlyActivePool() {
+		if (msg.sender != address(adminContract.activePool())) {
+			revert StabilityPool__ActivePoolOnly(msg.sender, address(adminContract.activePool()));
+		}
+		_;
+	}
+
+	modifier onlyVesselManager() {
+		if (msg.sender != address(vesselManager)) {
+			revert StabilityPool__VesselManagerOnly(msg.sender, address(vesselManager));
+		}
+		_;
+	}
+
+	// Contract Setters -------------------------------------------------------------------------------------------------
 
 	function setAddresses(
 		address _borrowerOperationsAddress,
@@ -247,7 +269,7 @@ contract StabilityPool is OwnableUpgradeable, ReentrancyGuardUpgradeable, PoolBa
 		address _sortedVesselsAddress,
 		address _communityIssuanceAddress,
 		address _adminContractAddress
-	) external initializer override {
+	) external override initializer {
 		require(!isInitialized, "StabilityPool: Already initialized");
 
 		isInitialized = true;
@@ -265,6 +287,11 @@ contract StabilityPool is OwnableUpgradeable, ReentrancyGuardUpgradeable, PoolBa
 		P = DECIMAL_PRECISION;
 
 		renounceOwnership();
+	}
+
+	function setCommunityIssuanceAddress(address _communityIssuanceAddress) external override onlyAdminContract {
+		communityIssuance = ICommunityIssuance(_communityIssuanceAddress);
+		emit CommunityIssuanceAddressChanged(_communityIssuanceAddress);
 	}
 
 	// --- Getters for public variables. Required by IPool interface ---
@@ -438,8 +465,7 @@ contract StabilityPool is OwnableUpgradeable, ReentrancyGuardUpgradeable, PoolBa
 		uint256 _debtToOffset,
 		address _asset,
 		uint256 _amountAdded
-	) external {
-		_requireCallerIsVesselManager();
+	) external onlyVesselManager {
 		uint256 cachedTotalDebtTokenDeposits = totalDebtTokenDeposits; // cached to save an SLOAD
 		if (cachedTotalDebtTokenDeposits == 0 || _debtToOffset == 0) {
 			return;
@@ -505,8 +531,7 @@ contract StabilityPool is OwnableUpgradeable, ReentrancyGuardUpgradeable, PoolBa
 	 * keeps all arrays the correct length
 	 * @param _collateral address of collateral to add
 	 */
-	function addCollateralType(address _collateral) external {
-		_requireCallerIsAdminContract();
+	function addCollateralType(address _collateral) external onlyAdminContract {
 		lastAssetError_Offset.push(0);
 		totalColl.tokens.push(_collateral);
 		totalColl.amounts.push(0);
@@ -875,18 +900,6 @@ contract StabilityPool is OwnableUpgradeable, ReentrancyGuardUpgradeable, PoolBa
 
 	// --- 'require' functions ---
 
-	function _requireCallerIsActivePool() internal view {
-		require(msg.sender == address(adminContract.activePool()), "StabilityPool: Caller is not ActivePool");
-	}
-
-	function _requireCallerIsVesselManager() internal view {
-		require(msg.sender == address(vesselManager), "StabilityPool: Caller is not VesselManager");
-	}
-
-	function _requireCallerIsAdminContract() internal view {
-		require(msg.sender == address(adminContract), "StabilityPool: Caller is not AdminContract");
-	}
-
 	/**
 	 * @notice check ICR of bottom vessel (per asset) in SortedVessels
 	 */
@@ -941,8 +954,7 @@ contract StabilityPool is OwnableUpgradeable, ReentrancyGuardUpgradeable, PoolBa
 
 	// --- Fallback function ---
 
-	function receivedERC20(address _asset, uint256 _amount) external override {
-		_requireCallerIsActivePool();
+	function receivedERC20(address _asset, uint256 _amount) external override onlyActivePool {
 		uint256 collateralIndex = adminContract.getIndex(_asset);
 		totalColl.amounts[collateralIndex] += _amount;
 		uint256 newAssetBalance = totalColl.amounts[collateralIndex];

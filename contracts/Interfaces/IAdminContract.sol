@@ -7,14 +7,10 @@ import "./IDefaultPool.sol";
 import "./IPriceFeed.sol";
 
 interface IAdminContract {
-	error SafeCheckError(
-		string parameter,
-		uint256 valueEntered,
-		uint256 minValue,
-		uint256 maxValue
-	);
+	error SafeCheckError(string parameter, uint256 valueEntered, uint256 minValue, uint256 maxValue);
 
 	// --- Events ---
+	event CommunityIssuanceAddressChanged(address newAddress);
 	event CollateralAdded(address _collateral);
 	event MCRChanged(uint256 oldMCR, uint256 newMCR);
 	event CCRChanged(uint256 oldCCR, uint256 newCCR);
@@ -23,10 +19,7 @@ interface IAdminContract {
 	event PercentDivisorChanged(uint256 oldPercentDiv, uint256 newPercentDiv);
 	event BorrowingFeeChanged(uint256 oldBorrowingFee, uint256 newBorrowingFee);
 	event MaxBorrowingFeeChanged(uint256 oldMaxBorrowingFee, uint256 newMaxBorrowingFee);
-	event RedemptionFeeFloorChanged(
-		uint256 oldRedemptionFeeFloor,
-		uint256 newRedemptionFeeFloor
-	);
+	event RedemptionFeeFloorChanged(uint256 oldRedemptionFeeFloor, uint256 newRedemptionFeeFloor);
 	event MintCapChanged(uint256 oldMintCap, uint256 newMintCap);
 	event RedemptionBlockChanged(address _collateral, uint256 _block);
 	event PriceFeedChanged(address indexed addr);
@@ -58,6 +51,11 @@ interface IAdminContract {
 		address _shortTimelock,
 		address _longTimelock
 	) external;
+
+	/**
+	 * The CommunityIssuance contract can be deployed on a posterior time and has to be updatable.
+	 */
+	function setCommunityIssuanceAddress(address _communityIssuanceAddress) external;
 
 	function setMCR(address _collateral, uint256 newMCR) external;
 
