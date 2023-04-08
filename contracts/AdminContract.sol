@@ -373,20 +373,6 @@ contract AdminContract is IAdminContract, ProxyAdmin {
 		emit BorrowingFeeChanged(oldBorrowing, newBorrowingFee);
 	}
 
-	function setDebtTokenGasCompensation(
-		address _collateral,
-		uint256 gasCompensation
-	)
-		public
-		override
-		longTimelockOnly
-		safeCheck("Gas Compensation", _collateral, gasCompensation, 1 ether, 400 ether)
-	{
-		uint256 oldGasComp = collateralParams[_collateral].debtTokenGasCompensation;
-		collateralParams[_collateral].debtTokenGasCompensation = gasCompensation;
-		emit GasCompensationChanged(oldGasComp, gasCompensation);
-	}
-
 	function setMinNetDebt(
 		address _collateral,
 		uint256 minNetDebt
