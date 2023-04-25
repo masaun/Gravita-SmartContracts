@@ -30,6 +30,26 @@ const STETH_TOKEN_ADDRESS =
 const WSTETH_TOKEN_ADDRESS =
 	/* goerli: */ "0x6320cD32aA674d2898A68ec82e869385Fc5f7E2f" /* mainnet: "0x7f39C581F595B53c5cb19bD0b3f8dA6c935E2Ca0" */
 
+async function createMockChainlink(price = DEFAULT_PRICE_e8, decimals = 8) {
+	const mockChainlink = await MockChainlink.new()
+	MockChainlink.setAsDeployed(mockChainlink)
+
+	await mockChainlink.setLatestRoundId(3)
+	await mockChainlink.setPrevRoundId(2)
+
+	// Set current and prev prices
+	await mockChainlink.setPrice(price)
+	await mockChainlink.setPrevPrice(price)
+
+	await mockChainlink.setDecimals(decimals)
+
+	// Set mock price updateTimes to very recent
+	const now = await th.getLatestBlockTimestamp(web3)
+	await mockChainlink.setUpdateTime(now)
+
+	return mockChainlink
+}
+
 contract("PriceFeed", async accounts => {
 	const [owner, alice] = accounts
 	let priceFeedTestnet
@@ -40,13 +60,9 @@ contract("PriceFeed", async accounts => {
 	let erc20
 
 	const setAddressesAndOracle = async () => {
-		await priceFeed.setAddresses(
-			adminContract.address,
-			shortTimelock.address,
-			{
-				from: owner,
-			}
-		)
+		await priceFeed.setAddresses(adminContract.address, shortTimelock.address, {
+			from: owner,
+		})
 		await setOracle(ZERO_ADDRESS, mockChainlink.address)
 		await priceFeed.fetchPrice(ZERO_ADDRESS)
 	}
@@ -71,8 +87,7 @@ contract("PriceFeed", async accounts => {
 		priceFeed = await PriceFeed.new()
 		PriceFeed.setAsDeployed(priceFeed)
 
-		mockChainlink = await MockChainlink.new()
-		MockChainlink.setAsDeployed(mockChainlink)
+		mockChainlink = await createMockChainlink()
 
 		adminContract = await AdminContract.new()
 		AdminContract.setAsDeployed(adminContract)
@@ -83,20 +98,39 @@ contract("PriceFeed", async accounts => {
 		shortTimelock = await Timelock.new(86400 * 3)
 		Timelock.setAsDeployed(shortTimelock)
 		setBalance(shortTimelock.address, 1e18)
+	})
 
-		// Set Chainlink latest and prev roundId's to non-zero
-		await mockChainlink.setLatestRoundId(3)
-		await mockChainlink.setPrevRoundId(2)
+	describe.only("Audit Issue #219", async () => {
+		it("Indexed asset can generate scaling error", async () => {
+			const ERC20_TO_ETH = 200_0000_0000
+			const ETH_TO_USD = 1000_0000_0000
 
-		// Set current and prev prices
-		await mockChainlink.setPrice(DEFAULT_PRICE_e8)
-		await mockChainlink.setPrevPrice(DEFAULT_PRICE_e8)
+			// create oracles for erc20-to-eth and eth-to-usd
+			const erc20toEthFeed = await createMockChainlink()
+			await erc20toEthFeed.setPrice(String(ERC20_TO_ETH))
+			await erc20toEthFeed.setPrevPrice(String(ERC20_TO_ETH))
 
-		await mockChainlink.setDecimals(8)
+			const ethToUsdFeed = await createMockChainlink()
+			await ethToUsdFeed.setPrice(String(ETH_TO_USD))
+			await ethToUsdFeed.setPrevPrice(String(ETH_TO_USD))
 
-		// Set mock price updateTimes to very recent
-		const now = await th.getLatestBlockTimestamp(web3)
-		await mockChainlink.setUpdateTime(now)
+			// set oracles on price feed
+			await priceFeed.setAddresses(adminContract.address, shortTimelock.address)
+			await setOracle(ZERO_ADDRESS, ethToUsdFeed.address, (isIndexed = false))
+			await setOracle(erc20.address, erc20toEthFeed.address, (isIndexed = true))
+
+			// check eth-usd price
+			await priceFeed.fetchPrice(ZERO_ADDRESS)
+			const ethPrice = (await priceFeed.priceRecords(ZERO_ADDRESS)).scaledPrice
+			const ETH_TO_USD_18 = toBN(ETH_TO_USD).mul(toBN(10 ** 10)) // transform base 8 to 18
+			assert.equal(ethPrice.toString(), ETH_TO_USD_18.toString())
+
+			// check erc20-usd price
+			await priceFeed.fetchPrice(erc20.address)
+			const erc20Price = (await priceFeed.priceRecords(erc20.address)).scaledPrice
+			const expectedPrice = toBN(200_000).mul(toBN(10 ** 18))
+			assert.equal(erc20Price.toString(), expectedPrice.toString())
+		})
 	})
 
 	describe("PriceFeedTestnet: internal testing contract", async accounts => {
@@ -110,31 +144,19 @@ contract("PriceFeed", async accounts => {
 	describe("Mainnet PriceFeed setup", async accounts => {
 		it("setAddresses should fail after addresses have already been set", async () => {
 			// Owner can successfully set any address
-			const txOwner = await priceFeed.setAddresses(
-				adminContract.address,
-				shortTimelock.address,
-				{ from: owner }
-			)
+			const txOwner = await priceFeed.setAddresses(adminContract.address, shortTimelock.address, { from: owner })
 			assert.isTrue(txOwner.receipt.status)
 
 			await assertRevert(
-				priceFeed.setAddresses(
-					adminContract.address,
-					shortTimelock.address,
-					{
-						from: owner,
-					}
-				)
+				priceFeed.setAddresses(adminContract.address, shortTimelock.address, {
+					from: owner,
+				})
 			)
 
 			await assertRevert(
-				priceFeed.setAddresses(
-					adminContract.address,
-					shortTimelock.address,
-					{
-						from: alice,
-					}
-				),
+				priceFeed.setAddresses(adminContract.address, shortTimelock.address, {
+					from: alice,
+				}),
 				"OwnableUpgradeable: caller is not the owner"
 			)
 		})
@@ -273,7 +295,6 @@ contract("PriceFeed", async accounts => {
 		await priceFeed.fetchPrice(ZERO_ADDRESS)
 		const ethPrice = await getPrice()
 		assert.equal(ethPrice.toString(), ETH_USD_PRICE_18_DIGITS)
-
 
 		const RETH_ETH_RATIO_18_DIGITS = "1054021266924449498"
 		await priceFeed.fetchPrice(RETH_TOKEN_ADDRESS)
